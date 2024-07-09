@@ -33,6 +33,7 @@
     "eslint-plugin-n": "^16.6.2",
     "eslint-plugin-promise": "^6.2.0",
     "prettier": "^3.3.2",
+    "sqlite3": "^5.1.7",
     "ts-loader": "^9.5.1",
     "tsx": "^4.15.4",
     "typescript": "^5.4.5",
