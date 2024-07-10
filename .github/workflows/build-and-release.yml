@@ -39,13 +39,8 @@ jobs:
 
       - name: Prepare release artifacts
         run: |
-          mkdir -p dist/release
-          mv dist/index.js dist/release/index.js
-          cp .env.example dist/release/.env
-          cp deploy-assets/run.bat dist/release/run.bat
-          cp deploy-assets/run.sh dist/release/run.sh
-          cd dist/release
-          tar -czvf ../release.tar.gz .env *
+          cd dist
+          tar -czvf ../release.tar.gz .env.example *
 
       - name: Create GitHub Release
         id: create_release

@@ -1,20 +1,35 @@
-import { graphql } from '@octokit/graphql';
-import { Octokit, RestEndpointMethodTypes } from '@octokit/rest';
 import { Attachment, Collection, Message } from 'discord.js';
 import { config } from '../config';
 import { insertRecord, removeRecord, removeRecorsByIssueNumber } from '../db';
 import { ActionValue, Actions, Triggerer, logger } from '../logger';
+import type { Octokit, RestEndpointMethodTypes } from '@octokit/rest';
+import type { graphql } from '@octokit/graphql/dist-types/types';
 
-export const octokit = new Octokit({
-	auth: config.GITHUB_ACCESS_TOKEN,
-	baseUrl: 'https://api.github.com'
-});
+let cachedOctokit: Octokit | null = null;
+let cachedGraphql: graphql | null = null;
 
-const graphqlWithAuth = graphql.defaults({
-	headers: {
-		authorization: `token ${process.env.GITHUB_ACCESS_TOKEN}`
+async function getOctokit() {
+	if (!cachedOctokit) {
+		const { Octokit } = await import('@octokit/rest');
+		cachedOctokit = new Octokit({
+			auth: config.GITHUB_ACCESS_TOKEN,
+			baseUrl: 'https://api.github.com'
+		});
 	}
-});
+	return cachedOctokit;
+}
+
+async function getGraphql() {
+	if (!cachedGraphql) {
+		const module = await import('@octokit/graphql');
+		cachedGraphql = module.graphql.defaults({
+			headers: {
+				authorization: `token ${process.env.GITHUB_ACCESS_TOKEN}`
+			}
+		});
+	}
+	return cachedGraphql;
+}
 
 export const repoCredentials = {
 	owner: config.GITHUB_USERNAME,
@@ -25,6 +40,7 @@ const info = (action: ActionValue, issue_number: number, additional: string = ''
 	logger.info(
 		`${Triggerer.Discord} | ${action} | https://github.com/${config.GITHUB_USERNAME}/${config.GITHUB_REPOSITORY}/issues/${issue_number}${additional}`
 	);
+
 const error = (action: ActionValue, err: unknown) =>
 	logger.error(
 		`${Triggerer.Discord} | ${action} | ${err instanceof Error ? err.message : String(err)}`
@@ -55,6 +71,7 @@ function getIssueBody(params: Message) {
 }
 
 const regexForDiscordCredentials = /https:\/\/discord\.com\/channels\/(\d+)\/(\d+)\/(\d+)(?=\))/;
+
 export function getDiscordInfoFromGithubBody(body: string) {
 	const match = body.match(regexForDiscordCredentials);
 	if (!match || match.length !== 4) return { channelId: undefined, id: undefined };
@@ -63,6 +80,7 @@ export function getDiscordInfoFromGithubBody(body: string) {
 }
 
 export async function getIssue(issue_number: number) {
+	const octokit = await getOctokit();
 	const response = await octokit.rest.issues.get({
 		...repoCredentials,
 		issue_number
@@ -80,6 +98,7 @@ export async function createIssue(
 	params: Message
 ) {
 	try {
+		const octokit = await getOctokit();
 		const { name: title, appliedTags, id: discord_id } = thread;
 
 		const body = getIssueBody(params);
@@ -113,6 +132,7 @@ async function updateIssue(
 	params: Partial<RestEndpointMethodTypes['issues']['update']['parameters']>
 ) {
 	try {
+		const octokit = await getOctokit();
 		await octokit.rest.issues.update({
 			...repoCredentials,
 			...params,
@@ -152,6 +172,7 @@ export async function closeIssue(issue_number: number) {
 
 export async function lockIssue(issue_number: number) {
 	try {
+		const octokit = await getOctokit();
 		const response = await octokit.rest.issues.lock({
 			...repoCredentials,
 			issue_number
@@ -168,6 +189,7 @@ export async function lockIssue(issue_number: number) {
 
 export async function unlockIssue(issue_number: number) {
 	try {
+		const octokit = await getOctokit();
 		const response = await octokit.rest.issues.unlock({
 			...repoCredentials,
 			issue_number
@@ -184,6 +206,7 @@ export async function unlockIssue(issue_number: number) {
 
 export async function deleteIssue(node_id: string, issue_number: number) {
 	try {
+		const graphqlWithAuth = await getGraphql();
 		await graphqlWithAuth(
 			`mutation {deleteIssue(input: {issueId: "${node_id}"}) {clientMutationId}}`
 		);
@@ -197,6 +220,7 @@ export async function deleteIssue(node_id: string, issue_number: number) {
 
 export async function createIssueComment(issue_number: number, params: Message) {
 	try {
+		const octokit = await getOctokit();
 		const body = getIssueBody(params);
 
 		const response = await octokit.rest.issues.createComment({
@@ -222,6 +246,7 @@ export async function createIssueComment(issue_number: number, params: Message) 
 
 export async function deleteIssueComment(github_id: number, issue_number: number) {
 	try {
+		const octokit = await getOctokit();
 		await octokit.rest.issues.deleteComment({
 			...repoCredentials,
 			comment_id: github_id

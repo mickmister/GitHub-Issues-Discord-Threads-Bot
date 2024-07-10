@@ -1,10 +1,16 @@
 import path from 'node:path';
 const __dirname = path.dirname(new URL(import.meta.url).pathname);
+import webpackNodeExternals from 'webpack-node-externals';
+import CreateFileWebpack from 'create-file-webpack';
+import { readFileSync } from 'fs';
+
+const packageJson = JSON.parse(readFileSync('./package.json', 'utf8'));
+const envExample = readFileSync('./.env.example', 'utf8');
 
 export default {
 	entry: './src/index.ts',
 	target: 'node',
-	mode: 'development', // TODO: Resolve issue in production mode where `client.actions.ThreadCreate.handle(packet.d);` throws an error due to 'ThreadCreate' being undefined.
+	mode: 'production',
 	module: {
 		rules: [
 			{
@@ -14,15 +20,25 @@ export default {
 			}
 		]
 	},
-	externals: {
-		sqlite3: 'commonjs sqlite3'
-	},
+	externals: [webpackNodeExternals()],
 	resolve: {
 		fallback: {
 			'zlib-sync': false
 		},
 		extensions: ['.tsx', '.ts', '.js']
 	},
+	plugins: [
+		new CreateFileWebpack({
+			path: './dist',
+			fileName: 'package.json',
+			content: JSON.stringify({ dependencies: packageJson.dependencies })
+		}),
+		new CreateFileWebpack({
+			path: './dist',
+			fileName: '.env.example',
+			content: envExample
+		})
+	],
 	output: {
 		filename: 'index.js',
 		path: path.resolve(__dirname, 'dist')
