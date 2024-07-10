@@ -1,29 +1,32 @@
 import { Database } from "sqlite3";
 
 type IssueRecord = {
-  githubIssueId: string;
-  discordThreadId: string;
+  github_id: number;
+  discord_id: string;
+  issue_number: number;
 };
 
-type Query = { githubIssueId: string } | { discordThreadId: string };
+type Query = { github_id: number } | { discord_id: string };
 
 const db = new Database("./data.db");
 
 db.serialize(() => {
   db.run(`CREATE TABLE IF NOT EXISTS records (
-        githubIssueId TEXT UNIQUE,
-        discordThreadId TEXT UNIQUE
+        github_id INTEGER UNIQUE,
+        discord_id TEXT UNIQUE,
+        issue_number INTEGER
     )`);
 });
 
-export function insertRecord(
-  githubIssueId: string,
-  discordThreadId: string,
-): Promise<void> {
+export function insertRecord({
+  github_id,
+  discord_id,
+  issue_number,
+}: IssueRecord): Promise<void> {
   return new Promise((resolve, reject) => {
     db.run(
-      "INSERT INTO records (githubIssueId, discordThreadId) VALUES (?, ?)",
-      [githubIssueId, discordThreadId],
+      "INSERT INTO records (github_id, discord_id, issue_number) VALUES (?, ?, ?)",
+      [github_id, discord_id, issue_number],
       (err) => {
         if (err) reject(err);
         resolve();
@@ -70,53 +73,40 @@ export function removeRecord(query: Query): Promise<void> {
   });
 }
 
-function getConditionAndParam(query: Query): {
-  condition: string;
-  param: string;
-} {
-  if ("githubIssueId" in query) {
-    return {
-      condition: "githubIssueId = ?",
-      param: query.githubIssueId,
-    };
-  }
-
-  if ("discordThreadId" in query) {
-    return {
-      condition: "discordThreadId = ?",
-      param: query.discordThreadId,
-    };
-  }
-
-  throw new Error("Either githubIssueId or discordThreadId must be provided");
+export function removeRecorsByIssueNumber(issue_number: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    db.run(
+      `DELETE FROM records WHERE issue_number = ?`,
+      [issue_number],
+      (err) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve();
+        }
+      },
+    );
+  });
 }
 
-(async () => {
-  try {
-    await insertRecord("123", "abc");
-  } catch (error) {
-    console.error("Error:", error);
+function getConditionAndParam(query: Query): {
+  condition: string;
+  param: string | number;
+} {
+  if ("github_id" in query) {
+    return {
+      condition: "github_id = ?",
+      param: query.github_id,
+    };
   }
-  try {
-    await insertRecord("124", "def");
-  } catch (error) {
-    console.error("Error:", error);
+
+  if ("discord_id" in query) {
+    return {
+      condition: "discord_id = ?",
+      param: query.discord_id,
+    };
   }
-  try {
-    const records = await getAllRecords();
-    console.log(records);
-  } catch (error) {
-    console.error("Error fetching records:", error);
-  }
-  const record2 = await getRecord({ discordThreadId: "abc" });
-  if (record2) {
-    console.log("Record:", record2);
-  } else {
-    console.log("Record with discordThreadId abc not found.");
-  }
-  try {
-    await removeRecord({ discordThreadId: "abc" });
-  } catch (error) {
-    console.error("Error removing records:", error);
-  }
-})();
+
+  throw new Error("Either github_id or discord_id must be provided");
+}
+

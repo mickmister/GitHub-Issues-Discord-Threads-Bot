@@ -2,153 +2,146 @@ import {
   AnyThreadChannel,
   Client,
   DMChannel,
-  ForumChannel,
   Message,
   NonThreadGuildBasedChannel,
   PartialMessage,
-  ThreadChannel,
 } from "discord.js";
 import { config } from "../config";
+import { getRecord } from "../db";
 import {
   closeIssue,
   createIssue,
   createIssueComment,
-  deleteComment,
   deleteIssue,
-  getIssues,
+  deleteIssueComment,
+  getIssue,
   lockIssue,
   openIssue,
   unlockIssue,
 } from "../github/githubActions";
 import { logger } from "../logger";
 import { store } from "../store";
-import { Thread } from "../interfaces";
+
+export const threadsCreateTaskMap: Map<
+  string,
+  { id: string; name: string; appliedTags: string[] }
+> = new Map([]);
 
 export async function handleClientReady(client: Client) {
   logger.info(`Logged in as ${client.user?.tag}!`);
 
-  store.threads = await getIssues();
+  // // Fetch cache for closed threads
+  // const threadPromises = store.threads.map(async (thread) => {
+  //   const cachedChannel = client.channels.cache.get(thread.id) as
+  //     | ThreadChannel
+  //     | undefined;
+  //   if (cachedChannel) {
+  //     cachedChannel.messages.cache.forEach((message) => message.id);
+  //     return thread; // Returning thread as valid
+  //   } else {
+  //     try {
+  //       const channel = (await client.channels.fetch(
+  //         thread.id,
+  //       )) as ThreadChannel;
+  //       channel.messages.cache.forEach((message) => message.id);
+  //       return thread; // Returning thread as valid
+  //     } catch (error) {
+  //       return; // Marking thread as invalid
+  //     }
+  //   }
+  // });
+  // const threadPromisesResults = await Promise.all(threadPromises);
+  // store.threads = threadPromisesResults.filter(
+  //   (thread) => thread !== undefined,
+  // ) as Thread[];
 
-  // Fetch cache for closed threads
-  const threadPromises = store.threads.map(async (thread) => {
-    const cachedChannel = client.channels.cache.get(thread.id) as
-      | ThreadChannel
-      | undefined;
-    if (cachedChannel) {
-      cachedChannel.messages.cache.forEach((message) => message.id);
-      return thread; // Returning thread as valid
-    } else {
-      try {
-        const channel = (await client.channels.fetch(
-          thread.id,
-        )) as ThreadChannel;
-        channel.messages.cache.forEach((message) => message.id);
-        return thread; // Returning thread as valid
-      } catch (error) {
-        return; // Marking thread as invalid
-      }
-    }
-  });
-  const threadPromisesResults = await Promise.all(threadPromises);
-  store.threads = threadPromisesResults.filter(
-    (thread) => thread !== undefined,
-  ) as Thread[];
+  // logger.info(`Issues loaded : ${store.threads.length}`);
 
-  logger.info(`Issues loaded : ${store.threads.length}`);
-
-  client.channels.fetch(config.DISCORD_CHANNEL_ID).then((params) => {
-    store.availableTags = (params as ForumChannel).availableTags;
-  });
+  // client.channels.fetch(config.DISCORD_CHANNEL_ID).then((params) => {
+  //   store.availableTags = (params as ForumChannel).availableTags;
+  // });
 }
 
 export async function handleThreadCreate(params: AnyThreadChannel) {
-  if (params.parentId !== config.DISCORD_CHANNEL_ID) return;
+  const { id, name, appliedTags, parentId } = params;
+  if (parentId !== config.DISCORD_CHANNEL_ID) return;
 
-  const { id, name, appliedTags } = params;
-
-  store.threads.push({
-    id,
-    appliedTags,
-    title: name,
-    archived: false,
-    locked: false,
-    comments: [],
-  });
+  threadsCreateTaskMap.set(id, { id, name, appliedTags });
 }
 
 export async function handleChannelUpdate(
   params: DMChannel | NonThreadGuildBasedChannel,
 ) {
-  if (params.id !== config.DISCORD_CHANNEL_ID) return;
+  const { id, type } = params;
+  if (id !== config.DISCORD_CHANNEL_ID) return;
 
-  if (params.type === 15) {
+  if (type === 15) {
     store.availableTags = params.availableTags;
   }
 }
 
 export async function handleThreadUpdate(params: AnyThreadChannel) {
-  if (params.parentId !== config.DISCORD_CHANNEL_ID) return;
+  const {
+    id: discord_id,
+    parentId,
+    archived: wasArchived,
+    locked: wasLocked,
+  } = params;
+  if (parentId !== config.DISCORD_CHANNEL_ID) return;
 
-  const { id, archived, locked } = params.members.thread;
-  const thread = store.threads.find((item) => item.id === id);
-  if (!thread) return;
+  const { archived, locked } = params.members.thread;
+  const { issue_number } = (await getRecord({ discord_id })) || {};
+  if (!issue_number) return;
 
-  if (thread.locked !== locked && !thread.lockLocking) {
-    if (thread.archived) {
-      thread.lockArchiving = true;
-    }
-    thread.locked = locked;
-    locked ? lockIssue(thread) : unlockIssue(thread);
+  if (archived !== wasArchived) {
+    archived ? closeIssue(issue_number) : openIssue(issue_number);
   }
-  if (thread.archived !== archived) {
-    setTimeout(() => {
-      // timeout for fixing discord archived post locking
-      if (thread.lockArchiving) {
-        if (archived) {
-          thread.lockArchiving = false;
-        }
-        thread.lockLocking = false;
-        return;
-      }
-      thread.archived = archived;
-      archived ? closeIssue(thread) : openIssue(thread);
-    }, 500);
+
+  if (locked !== wasLocked) {
+    locked ? lockIssue(issue_number) : unlockIssue(issue_number);
   }
 }
 
 export async function handleMessageCreate(params: Message) {
-  const { channelId, author } = params;
+  const {
+    channelId: discord_id,
+    nonce,
+    author: { bot },
+  } = params;
+  if (bot) return;
 
-  if (author.bot) return;
+  if (nonce === null) {
+    const threadInfo = threadsCreateTaskMap.get(discord_id);
+    threadsCreateTaskMap.delete(discord_id);
+    if (!threadInfo) return;
 
-  const thread = store.threads.find((thread) => thread.id === channelId);
-
-  if (!thread) return;
-
-  if (!thread.body) {
-    createIssue(thread, params);
+    createIssue(threadInfo, params);
   } else {
-    createIssueComment(thread, params);
+    const { issue_number } = (await getRecord({ discord_id })) || {};
+    if (!issue_number) return;
+
+    createIssueComment(issue_number, params);
   }
 }
 
 export async function handleMessageDelete(params: Message | PartialMessage) {
-  const { channelId, id } = params;
-  const thread = store.threads.find((i) => i.id === channelId);
-  if (!thread) return;
+  const { id: discord_id } = params;
 
-  const commentIndex = thread.comments.findIndex((i) => i.id === id);
-  if (commentIndex === -1) return;
+  const { github_id, issue_number } = (await getRecord({ discord_id })) || {};
+  if (!github_id || !issue_number) return;
 
-  const comment = thread.comments.splice(commentIndex, 1)[0];
-  deleteComment(thread, comment.git_id);
+  deleteIssueComment(github_id, issue_number);
 }
 
 export async function handleThreadDelete(params: AnyThreadChannel) {
   if (params.parentId !== config.DISCORD_CHANNEL_ID) return;
 
-  const thread = store.threads.find((item) => item.id === params.id);
-  if (!thread) return;
+  const { issue_number } = (await getRecord({ discord_id: params.id })) || {};
+  if (!issue_number) return;
 
-  deleteIssue(thread);
+  const { node_id } = (await getIssue(issue_number)) || {};
+  if (!node_id) return;
+
+  deleteIssue(node_id, issue_number);
 }
+
