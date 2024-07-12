@@ -9,7 +9,7 @@
 		"build": "webpack",
 		"lint": "prettier --check . && eslint .",
 		"format": "prettier --write .",
-		"forward": "ssh -R 80:localhost:5000 serveo.net"
+		"forward": "ngrok http 5000"
 	},
 	"author": "Nicat",
 	"license": "MIT",
@@ -27,7 +27,6 @@
 		"@types/eslint": "^8.56.10",
 		"@types/express": "^4.17.21",
 		"@types/node": "^20.14.10",
-		"bufferutil": "^4.0.8",
 		"create-file-webpack": "^1.0.2",
 		"eslint": "^9.6.0",
 		"eslint-config-prettier": "^9.1.0",
@@ -38,7 +37,6 @@
 		"tsx": "^4.16.2",
 		"typescript": "^5.5.3",
 		"typescript-eslint": "^7.16.0",
-		"utf-8-validate": "^6.0.4",
 		"webpack": "^5.92.1",
 		"webpack-cli": "^5.1.4",
 		"webpack-node-externals": "^3.0.0"
