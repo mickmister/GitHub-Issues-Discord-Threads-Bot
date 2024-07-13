@@ -20,11 +20,7 @@ import {
 	unlockIssue
 } from '../github/githubActions';
 import { logger } from '../logger';
-
-export const threadsCreateTaskMap: Map<
-	string,
-	{ id: string; name: string; appliedTags: string[] }
-> = new Map([]);
+import { closeTaskStore, lockTaskStore, threadsCreateTaskStore } from '../store';
 
 export async function handleClientReady(client: Client) {
 	logger.info(`Logged in as ${client.user?.tag}!`);
@@ -34,7 +30,7 @@ export async function handleThreadCreate(params: AnyThreadChannel) {
 	const { id, name, appliedTags, parentId } = params;
 	if (parentId !== config.DISCORD_CHANNEL_ID) return;
 
-	threadsCreateTaskMap.set(id, { id, name, appliedTags });
+	threadsCreateTaskStore.set(id, { id, name, appliedTags });
 }
 
 export async function handleChannelUpdate(params: DMChannel | NonThreadGuildBasedChannel) {
@@ -54,12 +50,14 @@ export async function handleThreadUpdate(params: AnyThreadChannel) {
 	const { issue_number } = (await getRecord({ discord_id })) || {};
 	if (!issue_number) return;
 
-	if (archived !== wasArchived) {
+	if (archived !== wasArchived && archived !== closeTaskStore.get(discord_id)) {
 		archived ? closeIssue(issue_number) : openIssue(issue_number);
+		closeTaskStore.delete(discord_id);
 	}
 
-	if (locked !== wasLocked) {
+	if (locked !== wasLocked && locked !== lockTaskStore.get(discord_id)) {
 		locked ? lockIssue(issue_number) : unlockIssue(issue_number);
+		lockTaskStore.delete(discord_id);
 	}
 }
 
@@ -72,8 +70,8 @@ export async function handleMessageCreate(params: Message) {
 	if (bot) return;
 
 	if (nonce === null) {
-		const threadInfo = threadsCreateTaskMap.get(discord_id);
-		threadsCreateTaskMap.delete(discord_id);
+		const threadInfo = threadsCreateTaskStore.get(discord_id);
+		threadsCreateTaskStore.delete(discord_id);
 		if (!threadInfo) return;
 
 		createIssue(threadInfo, params);

@@ -11,6 +11,7 @@ import {
 	reopenThread,
 	unlockThread
 } from '../discord/discordActions';
+import { closeTaskStore, lockTaskStore } from '../store';
 import { getDiscordInfoFromGithubBody } from './githubActions';
 
 export async function handleOpened(
@@ -59,7 +60,10 @@ export async function handleClosed(
 ) {
 	const { id: github_id } = req.body.issue;
 	const { discord_id } = (await getRecord({ github_id })) || {};
-	if (discord_id) closeThread(discord_id);
+	if (!discord_id) return;
+
+	closeThread(discord_id);
+	closeTaskStore.set(discord_id, true);
 }
 
 export async function handleReopened(
@@ -67,7 +71,10 @@ export async function handleReopened(
 ) {
 	const { id: github_id } = req.body.issue;
 	const { discord_id } = (await getRecord({ github_id })) || {};
-	if (discord_id) reopenThread(discord_id);
+	if (!discord_id) return;
+
+	reopenThread(discord_id);
+	closeTaskStore.set(discord_id, false);
 }
 
 export async function handleLocked(
@@ -75,7 +82,10 @@ export async function handleLocked(
 ) {
 	const { id: github_id } = req.body.issue;
 	const { discord_id } = (await getRecord({ github_id })) || {};
-	if (discord_id) lockThread(discord_id);
+	if (!discord_id) return;
+
+	lockThread(discord_id);
+	lockTaskStore.set(discord_id, true);
 }
 
 export async function handleUnlocked(
@@ -83,7 +93,10 @@ export async function handleUnlocked(
 ) {
 	const { id: github_id } = req.body.issue;
 	const { discord_id } = (await getRecord({ github_id })) || {};
-	if (discord_id) unlockThread(discord_id);
+	if (!discord_id) return;
+
+	unlockThread(discord_id);
+	lockTaskStore.set(discord_id, false);
 }
 
 export async function handleDeleted(
@@ -91,7 +104,9 @@ export async function handleDeleted(
 ) {
 	const { id: github_id } = req.body.issue;
 	const { discord_id } = (await getRecord({ github_id })) || {};
-	if (discord_id) deleteThread(discord_id);
+	if (!discord_id) return;
+
+	deleteThread(discord_id);
 }
 
 export async function handleCommentDeleted(
@@ -101,7 +116,9 @@ export async function handleCommentDeleted(
 	const commentId = req.body.comment.id;
 	const { discord_id: threadId } = (await getRecord({ github_id: issueId })) || {};
 	const { discord_id: messageId } = (await getRecord({ github_id: commentId })) || {};
-	if (threadId && messageId) deleteComment(threadId, messageId);
+	if (!threadId || !messageId) return;
+
+	deleteComment(threadId, messageId);
 }
 
 // 'webhook-issues-edited';
