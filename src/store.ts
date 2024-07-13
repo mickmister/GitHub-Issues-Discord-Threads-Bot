@@ -18,4 +18,3 @@ export const threadsCreateTaskStore: Map<
 	string,
 	{ id: string; name: string; appliedTags: string[] }
 > = new Map([]);
-

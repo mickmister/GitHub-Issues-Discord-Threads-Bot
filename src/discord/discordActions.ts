@@ -1,11 +1,18 @@
 import { ForumChannel, MessagePayload, ThreadChannel } from 'discord.js';
 import { config } from '../config';
 import { getRecord, insertRecord, removeRecord } from '../db';
-import { ActionValue, Actions, Triggerer, getDiscordUrl, logger } from '../logger';
+import { ActionValue, Actions, Triggerer, logger } from '../logger';
 import client from './discord';
 
-const info = (action: ActionValue, thread?: any) =>
-	logger.info(`${Triggerer.Github} | ${action} | ${thread ? getDiscordUrl(thread) : ''}`);
+const info = (
+	action: ActionValue,
+	channel: ForumChannel | ThreadChannel,
+	threadId: string,
+	messageId?: string
+) =>
+	logger.info(
+		`${Triggerer.Github} | ${action} | ${`https://discord.com/channels/${channel.guildId}/${threadId}${messageId ? `/${messageId}` : ''}`}`
+	);
 
 export async function createThread({
 	body,
@@ -25,8 +32,8 @@ export async function createThread({
 	issue_number: number;
 }) {
 	try {
-		const forum = client.channels.cache.get(config.DISCORD_CHANNEL_ID) as ForumChannel;
-		const webhook = await forum.createWebhook({ name: login, avatar: avatar_url });
+		const channel = client.channels.cache.get(config.DISCORD_CHANNEL_ID) as ForumChannel;
+		const webhook = await channel.createWebhook({ name: login, avatar: avatar_url });
 		const messagePayload = MessagePayload.create(webhook, {
 			content: body,
 			threadName: title
@@ -36,7 +43,7 @@ export async function createThread({
 
 		insertRecord({ discord_id, github_id, issue_number });
 
-		info(Actions.Created);
+		info(Actions.Created, channel, discord_id);
 	} catch (err) {
 		console.log(err);
 	}
@@ -74,7 +81,7 @@ export async function createComment({
 
 		insertRecord({ discord_id, github_id, issue_number });
 
-		info(Actions.Commented);
+		info(Actions.Commented, channel, threadId, discord_id);
 	} catch (err) {
 		console.log(err);
 	}
@@ -86,7 +93,7 @@ export async function closeThread(threadId: string) {
 
 	channel.setArchived(true);
 
-	info(Actions.Closed);
+	info(Actions.Closed, channel, threadId);
 }
 
 export async function reopenThread(threadId: string) {
@@ -95,7 +102,7 @@ export async function reopenThread(threadId: string) {
 
 	channel.setArchived(false);
 
-	info(Actions.Reopened);
+	info(Actions.Reopened, channel, threadId);
 }
 
 export async function lockThread(threadId: string) {
@@ -110,7 +117,7 @@ export async function lockThread(threadId: string) {
 		channel.setLocked(true);
 	}
 
-	info(Actions.Locked);
+	info(Actions.Locked, channel, threadId);
 }
 
 export async function unlockThread(threadId: string) {
@@ -125,7 +132,7 @@ export async function unlockThread(threadId: string) {
 		channel.setLocked(false);
 	}
 
-	info(Actions.Unlocked);
+	info(Actions.Unlocked, channel, threadId);
 }
 
 export async function deleteThread(threadId: string) {
@@ -135,7 +142,7 @@ export async function deleteThread(threadId: string) {
 	channel.delete();
 	removeRecord({ discord_id: threadId });
 
-	info(Actions.Deleted);
+	info(Actions.Deleted, channel, threadId);
 }
 
 export async function getThreadChannel(threadId: string): Promise<ThreadChannel | undefined> {
@@ -156,5 +163,5 @@ export async function deleteComment(threadId: string, messageId: string) {
 	await targetMessage.delete();
 	removeRecord({ discord_id: messageId });
 
-	info(Actions.Deleted);
+	info(Actions.Deleted, channel, threadId, messageId);
 }

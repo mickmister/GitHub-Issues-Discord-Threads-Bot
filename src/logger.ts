@@ -1,6 +1,4 @@
 import winston, { format } from 'winston';
-import { config } from './config';
-import client from './discord/discord';
 
 export const logger = winston.createLogger({
 	level: 'info',
@@ -38,11 +36,3 @@ export const Actions = {
 } as const;
 
 export type ActionValue = (typeof Actions)[keyof typeof Actions];
-
-export const getDiscordUrl = (thread: any) => {
-	return `${client.channels.cache.get(config.DISCORD_CHANNEL_ID)?.url}/threads/${thread.id}`;
-};
-
-export const getGithubUrl = (thread: any) => {
-	return `https://github.com/${config.GITHUB_USERNAME}/${config.GITHUB_REPOSITORY}/issues/${thread.number}`;
-};

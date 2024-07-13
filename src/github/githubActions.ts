@@ -1,9 +1,9 @@
+import type { graphql } from '@octokit/graphql/dist-types/types';
+import type { Octokit, RestEndpointMethodTypes } from '@octokit/rest';
 import { Attachment, Collection, Message } from 'discord.js';
 import { config } from '../config';
 import { insertRecord, removeRecord, removeRecorsByIssueNumber } from '../db';
 import { ActionValue, Actions, Triggerer, logger } from '../logger';
-import type { Octokit, RestEndpointMethodTypes } from '@octokit/rest';
-import type { graphql } from '@octokit/graphql/dist-types/types';
 
 let cachedOctokit: Octokit | null = null;
 let cachedGraphql: graphql | null = null;
