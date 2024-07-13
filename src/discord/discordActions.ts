@@ -159,9 +159,10 @@ export async function deleteComment(threadId: string, messageId: string) {
 	const channel = await getThreadChannel(threadId);
 	if (!channel) return;
 
+	removeRecord({ discord_id: messageId });
+
 	const targetMessage = await channel.messages.fetch(messageId);
 	await targetMessage.delete();
-	removeRecord({ discord_id: messageId });
 
 	info(Actions.Deleted, channel, threadId, messageId);
 }
