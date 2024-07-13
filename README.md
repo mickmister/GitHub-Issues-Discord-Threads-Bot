@@ -4,36 +4,50 @@ This Discord bot serves as a seamless bridge between Discord thread channel and 
 
 ## Functionality Overview
 
-#### Issues
+#### Issue create
 
-- \[x] Discord Post Creation -> Automatically generates a corresponding GitHub issue.
-- \[ ] GitHub Issue Creation -> Pending feature: Creation of Discord posts from GitHub issues.
+- \[x] discord -> github
+- \[x] github -> discord
 
-#### Comments
+#### Issue edit
 
-- \[x] Discord Post Comments -> Mirrored as comments on associated GitHub issues.
-- \[ ] GitHub Issue Comments -> Pending feature: Synchronization with Discord post comments.
+- \[ ] discord -> github
+- \[ ] github -> discord
 
-#### Tags & Labels
+#### Issue delete
 
-- \[x] Discord Post Tags -> Translated into GitHub issue labels for better categorization.
-- \[ ] Discord Post Tag Changes -> Future implementation: Update GitHub issue labels from Discord.
-- \[ ] GitHub Issue Label Changes -> Future implementation: Reflect changes in Discord post tags from GitHub.
+- \[x] discord -> github
+- \[x] github -> discord
 
-#### Locking & Unlocking
+#### Issue Comment create
 
-- \[x] Discord Post Lock/Unlock -> Corresponding action on GitHub issues for security or access control.
-- \[x] GitHub Issue Lock/Unlock -> Syncing locking status with Discord posts.
+- \[x] discord -> github
+- \[x] github -> discord
 
-#### Open/Close Management
+#### Issue Comment edit
 
-- \[x] Discord Post Open/Close -> Triggers opening or closing of related GitHub issues.
-- \[x] GitHub Issue Open/Close -> Update Discord post status based on GitHub issue status.
+- \[ ] discord -> github
+- \[ ] github -> discord
 
-#### Deletion Actions
+#### Issue Comment delete
 
-- \[x] Discord Post Deletion -> Initiates the removal of the associated GitHub issue.
-- \[x] GitHub Issue Deletion -> Sync deletion actions from GitHub to Discord posts.
+- \[x] discord -> github
+- \[x] github -> discord
+
+#### Issue Locking & Unlocking
+
+- \[x] discord -> github
+- \[x] github -> discord
+
+#### Issue Open/Close
+
+- \[x] discord -> github
+- \[x] github -> discord
+
+#### Issue Labels
+
+- \[ ] discord -> github
+- \[ ] github -> discord
 
 #### Attachment Support
 
@@ -42,7 +56,7 @@ This Discord bot serves as a seamless bridge between Discord thread channel and 
 
 ## Installation Steps
 
-#### Creating bot
+### Creating bot
 
 Create bot https://discord.com/developers/applications?new_application=true
 
@@ -53,7 +67,7 @@ Bot settings:
 
 Invite url: https://discord.com/api/oauth2/authorize?client_id=APPLICATION_ID&permissions=0&scope=bot
 
-#### env
+### env
 
 - DISCORD_TOKEN - Discord developer bot page "Settings->bot->reset token" (https://discord.com/developers/applications/APPLICATION_ID/bot)
 - DISCORD_CHANNEL_ID - In the Discord server, create a forum channel and right-click (RMB) to copy the channel ID (developer settings must be turned on for this). Alternatively, you can copy the ID from the link. Example:
@@ -68,7 +82,7 @@ Invite url: https://discord.com/api/oauth2/authorize?client_id=APPLICATION_ID&pe
 
 > **_NOTE:_** For detailed information about personal access tokens, visit the [Managing your personal access tokens - GitHub Docs](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens).
 
-#### Start bot
+### Start bot
 
 ```bash
 npm run dev
@@ -80,8 +94,18 @@ or
 npm run build && npm run start
 ```
 
-Forward for github webhooks:
+### Activating GitHub to Discord Integration
 
 ```bash
-ssh -R 80:localhost:5000 serveo.net
+npm run forward
 ```
+
+Configure your webhook settings in GitHub:
+
+- Go to your GitHub repository settings and navigate to **Webhooks**.
+- Click on **Add webhook**.
+- Set the following parameters:
+  - **Payload URL:** Place your ngrok URL.
+  - **Content type:** Select `application/json`.
+  - **Individual events:** Choose `Issues` and `Issue comments`.
+- Save your webhook settings.
