@@ -1,27 +1,44 @@
 import { Database } from 'sqlite3';
 
-type IssueRecord = {
-	github_id: number;
-	discord_id: string;
-	issue_number: number;
+const FILE = './data.db';
+
+const TABLE = 'records';
+const GITHUB_ID_FIELD = 'github_id' as const;
+const DISCORD_ID_FIELD = 'discord_id' as const;
+const ISSUE_NUMBER_FIELD = 'issue_number' as const;
+
+const SELECT_ALL_FROM = 'SELECT * FROM';
+const WHERE = 'WHERE';
+const DELETE_FROM = 'DELETE FROM';
+const INSERT_INTO = 'INSERT INTO';
+
+type Simplify<T> = { [KeyType in keyof T]: T[KeyType] } & {};
+type GithubFieldType = {
+	readonly [GITHUB_ID_FIELD]: number;
 };
+type DiscordFieldType = {
+	readonly [DISCORD_ID_FIELD]: string;
+};
+interface IssueRecordType extends DiscordFieldType, GithubFieldType {
+	readonly [ISSUE_NUMBER_FIELD]: number;
+}
+type QueryType = GithubFieldType | DiscordFieldType;
+type IssueRecord = Simplify<IssueRecordType>;
+type Query = Simplify<QueryType>;
 
-type Query = { github_id: number } | { discord_id: string };
-
-const db = new Database('./data.db');
+const db = new Database(FILE);
+process.on('exit', () => db.close());
 
 db.serialize(() => {
-	db.run(`CREATE TABLE IF NOT EXISTS records (
-        github_id INTEGER UNIQUE,
-        discord_id TEXT UNIQUE,
-        issue_number INTEGER
-    )`);
+	db.run(
+		`CREATE TABLE IF NOT EXISTS ${TABLE} (${GITHUB_ID_FIELD} INTEGER UNIQUE, ${DISCORD_ID_FIELD} TEXT UNIQUE, ${ISSUE_NUMBER_FIELD} INTEGER)`
+	);
 });
 
 export function insertRecord({ github_id, discord_id, issue_number }: IssueRecord): Promise<void> {
 	return new Promise((resolve, reject) => {
 		db.run(
-			'INSERT INTO records (github_id, discord_id, issue_number) VALUES (?, ?, ?)',
+			`${INSERT_INTO} ${TABLE} (${GITHUB_ID_FIELD}, ${DISCORD_ID_FIELD}, ${ISSUE_NUMBER_FIELD}) VALUES (?, ?, ?)`,
 			[github_id, discord_id, issue_number],
 			(err) => {
 				if (err) reject(err);
@@ -33,7 +50,7 @@ export function insertRecord({ github_id, discord_id, issue_number }: IssueRecor
 
 export function getAllRecords(): Promise<IssueRecord[]> {
 	return new Promise((resolve, reject) => {
-		db.all<IssueRecord>('SELECT * FROM records', (err, rows) => {
+		db.all<IssueRecord>(`${SELECT_ALL_FROM} ${TABLE}`, (err, rows) => {
 			if (err) reject(err);
 			resolve(rows);
 		});
@@ -44,10 +61,14 @@ export function getRecord(query: Query): Promise<IssueRecord | null> {
 	const { condition, param } = getConditionAndParam(query);
 
 	return new Promise((resolve, reject) => {
-		db.get<IssueRecord>(`SELECT * FROM records WHERE ${condition}`, [param], (err, row) => {
-			if (err) reject(err);
-			resolve(row);
-		});
+		db.get<IssueRecord>(
+			`${SELECT_ALL_FROM} ${TABLE} ${WHERE} ${condition}`,
+			[param],
+			(err, row) => {
+				if (err) reject(err);
+				resolve(row);
+			}
+		);
 	});
 }
 
@@ -55,7 +76,7 @@ export function removeRecord(query: Query): Promise<void> {
 	const { condition, param } = getConditionAndParam(query);
 
 	return new Promise((resolve, reject) => {
-		db.run(`DELETE FROM records WHERE ${condition}`, [param], (err) => {
+		db.run(`${DELETE_FROM} ${TABLE} ${WHERE} ${condition}`, [param], (err) => {
 			if (err) {
 				reject(err);
 			} else {
@@ -67,7 +88,7 @@ export function removeRecord(query: Query): Promise<void> {
 
 export function removeRecorsByIssueNumber(issue_number: number): Promise<void> {
 	return new Promise((resolve, reject) => {
-		db.run('DELETE FROM records WHERE issue_number = ?', [issue_number], (err) => {
+		db.run(`${DELETE_FROM} ${TABLE} ${WHERE} ${ISSUE_NUMBER_FIELD} = ?`, [issue_number], (err) => {
 			if (err) {
 				reject(err);
 			} else {
@@ -81,16 +102,16 @@ function getConditionAndParam(query: Query): {
 	condition: string;
 	param: string | number;
 } {
-	if ('github_id' in query) {
+	if (GITHUB_ID_FIELD in query) {
 		return {
-			condition: 'github_id = ?',
+			condition: `${GITHUB_ID_FIELD} = ?`,
 			param: query.github_id
 		};
 	}
 
-	if ('discord_id' in query) {
+	if (DISCORD_ID_FIELD in query) {
 		return {
-			condition: 'discord_id = ?',
+			condition: `${DISCORD_ID_FIELD} = ?`,
 			param: query.discord_id
 		};
 	}
