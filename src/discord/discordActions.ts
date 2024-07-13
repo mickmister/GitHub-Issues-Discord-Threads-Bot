@@ -1,170 +1,160 @@
 import { ForumChannel, MessagePayload, ThreadChannel } from 'discord.js';
 import { config } from '../config';
-import { Thread } from '../interfaces';
+import { getRecord, insertRecord, removeRecord } from '../db';
 import { ActionValue, Actions, Triggerer, getDiscordUrl, logger } from '../logger';
-import { store } from '../store';
 import client from './discord';
 
-const info = (action: ActionValue, thread: Thread) =>
-	logger.info(`${Triggerer.Github} | ${action} | ${getDiscordUrl(thread)}`);
+const info = (action: ActionValue, thread?: any) =>
+	logger.info(`${Triggerer.Github} | ${action} | ${thread ? getDiscordUrl(thread) : ''}`);
 
-export function createThread({
-	body,
-	login,
-	title,
-	appliedTags,
-	node_id,
-	number
-}: {
-	body: string;
-	login: string;
-	title: string;
-	appliedTags: string[];
-	node_id: string;
-	number: number;
-}) {
-	const forum = client.channels.cache.get(config.DISCORD_CHANNEL_ID) as ForumChannel;
-	forum.threads
-		.create({
-			message: {
-				content: body + '/' + login // TODO
-			},
-			name: title,
-			appliedTags
-		})
-		.then(({ id }) => {
-			const thread = store.threads.find((thread) => thread.id === id);
-			if (!thread) return;
-
-			thread.body = body;
-			thread.node_id = node_id;
-			thread.number = number;
-
-			info(Actions.Created, thread);
-		});
-}
-
-export async function createComment({
-	git_id,
+export async function createThread({
 	body,
 	login,
 	avatar_url,
-	node_id
+	title,
+	appliedTags,
+	github_id,
+	issue_number
 }: {
-	git_id: number;
 	body: string;
 	login: string;
 	avatar_url: string;
-	node_id: string;
+	title: string;
+	appliedTags: string[];
+	github_id: number;
+	issue_number: number;
 }) {
-	const { thread, channel } = await getThreadChannel(node_id);
-	if (!thread || !channel) return;
-
-	channel.parent
-		?.createWebhook({ name: login, avatar: avatar_url })
-		.then((webhook) => {
-			const messagePayload = MessagePayload.create(webhook, {
-				content: body,
-				threadId: thread.id
-			}).resolveBody();
-			webhook
-				.send(messagePayload)
-				.then(({ id }) => {
-					thread?.comments.push({ id, git_id });
-					webhook.delete('Cleanup');
-
-					info(Actions.Commented, thread);
-				})
-				.catch(console.error);
-		})
-		.catch(console.error);
-}
-
-export async function archiveThread(node_id: string | undefined) {
-	const { thread, channel } = await getThreadChannel(node_id);
-	if (!thread || !channel || channel.archived) return;
-
-	info(Actions.Closed, thread);
-
-	thread.archived = true;
-	channel.setArchived(true);
-}
-
-export async function unarchiveThread(node_id: string | undefined) {
-	const { thread, channel } = await getThreadChannel(node_id);
-	if (!thread || !channel || !channel.archived) return;
-
-	info(Actions.Reopened, thread);
-
-	thread.archived = false;
-	channel.setArchived(false);
-}
-
-export async function lockThread(node_id: string | undefined) {
-	const { thread, channel } = await getThreadChannel(node_id);
-	if (!thread || !channel || channel.locked) return;
-
-	info(Actions.Locked, thread);
-
-	thread.locked = true;
-	if (channel.archived) {
-		thread.lockArchiving = true;
-		thread.lockLocking = true;
-		channel.setArchived(false);
-		channel.setLocked(true);
-		channel.setArchived(true);
-	} else {
-		channel.setLocked(true);
-	}
-}
-
-export async function unlockThread(node_id: string | undefined) {
-	const { thread, channel } = await getThreadChannel(node_id);
-	if (!thread || !channel || !channel.locked) return;
-
-	info(Actions.Unlocked, thread);
-
-	thread.locked = false;
-	if (channel.archived) {
-		thread.lockArchiving = true;
-		thread.lockLocking = true;
-		channel.setArchived(false);
-		channel.setLocked(false);
-		channel.setArchived(true);
-	} else {
-		channel.setLocked(false);
-	}
-}
-
-export async function deleteThread(node_id: string | undefined) {
-	const { channel, thread } = await getThreadChannel(node_id);
-	if (!thread || !channel) return;
-
-	info(Actions.Deleted, thread);
-
-	store.deleteThread(thread?.id);
-	channel.delete();
-}
-
-export async function getThreadChannel(node_id: string | undefined): Promise<{
-	channel: ThreadChannel<boolean> | undefined;
-	thread: Thread | undefined;
-}> {
-	let channel: ThreadChannel<boolean> | undefined;
-	if (!node_id) return { thread: undefined, channel };
-
-	const thread = store.threads.find((thread) => thread.node_id === node_id);
-	if (!thread) return { thread, channel };
-
-	channel = <ThreadChannel | undefined>client.channels.cache.get(thread.id);
-	if (channel) return { thread, channel };
-
 	try {
-		const fetchChanel = await client.channels.fetch(thread.id);
-		channel = <ThreadChannel | undefined>fetchChanel;
+		const forum = client.channels.cache.get(config.DISCORD_CHANNEL_ID) as ForumChannel;
+		const webhook = await forum.createWebhook({ name: login, avatar: avatar_url });
+		const messagePayload = MessagePayload.create(webhook, {
+			content: body,
+			threadName: title
+		}).resolveBody();
+		const { id: discord_id } = await webhook.send(messagePayload);
+		webhook.delete('Cleanup');
+
+		insertRecord({ discord_id, github_id, issue_number });
+
+		info(Actions.Created);
 	} catch (err) {
-		/* empty */
+		console.log(err);
+	}
+}
+
+export async function createComment({
+	body,
+	login,
+	avatar_url,
+	github_id,
+	issue_number,
+	issue_id
+}: {
+	body: string;
+	login: string;
+	avatar_url: string;
+	github_id: number;
+	issue_number: number;
+	issue_id: number;
+}) {
+	try {
+		const { discord_id: threadId } = (await getRecord({ github_id: issue_id })) || {};
+		if (!threadId) return;
+
+		const channel = await getThreadChannel(threadId);
+		if (!channel?.parent) return;
+
+		const webhook = await channel.parent.createWebhook({ name: login, avatar: avatar_url });
+		const messagePayload = MessagePayload.create(webhook, {
+			content: body,
+			threadId
+		}).resolveBody();
+		const { id: discord_id } = await webhook.send(messagePayload);
+		webhook.delete('Cleanup');
+
+		insertRecord({ discord_id, github_id, issue_number });
+
+		info(Actions.Commented);
+	} catch (err) {
+		console.log(err);
+	}
+}
+
+export async function closeThread(threadId: string) {
+	const channel = await getThreadChannel(threadId);
+	if (!channel || channel.archived) return;
+
+	channel.setArchived(true);
+
+	info(Actions.Closed);
+}
+
+export async function reopenThread(threadId: string) {
+	const channel = await getThreadChannel(threadId);
+	if (!channel || !channel.archived) return;
+
+	channel.setArchived(false);
+
+	info(Actions.Reopened);
+}
+
+export async function lockThread(threadId: string) {
+	const channel = await getThreadChannel(threadId);
+	if (!channel || channel.locked) return;
+
+	if (channel.archived) {
+		channel.setArchived(false);
+		channel.setLocked(true);
+		channel.setArchived(true);
+	} else {
+		channel.setLocked(true);
 	}
 
-	return { thread, channel };
+	info(Actions.Locked);
+}
+
+export async function unlockThread(threadId: string) {
+	const channel = await getThreadChannel(threadId);
+	if (!channel || !channel.locked) return;
+
+	if (channel.archived) {
+		channel.setArchived(false);
+		channel.setLocked(false);
+		channel.setArchived(true);
+	} else {
+		channel.setLocked(false);
+	}
+
+	info(Actions.Unlocked);
+}
+
+export async function deleteThread(threadId: string) {
+	const channel = await getThreadChannel(threadId);
+	if (!channel) return;
+
+	channel.delete();
+	removeRecord({ discord_id: threadId });
+
+	info(Actions.Deleted);
+}
+
+export async function getThreadChannel(threadId: string): Promise<ThreadChannel | undefined> {
+	const channel = client.channels.cache.get(threadId) || (await client.channels.fetch(threadId));
+
+	if (channel instanceof ThreadChannel) {
+		return channel;
+	}
+
+	return undefined;
+}
+
+export async function deleteComment(threadId: string, messageId: string) {
+	const channel = await getThreadChannel(threadId);
+	if (!channel) return;
+
+	const targetMessage = await channel.messages.fetch(messageId);
+	await targetMessage.delete();
+	removeRecord({ discord_id: messageId });
+
+	info(Actions.Deleted);
 }

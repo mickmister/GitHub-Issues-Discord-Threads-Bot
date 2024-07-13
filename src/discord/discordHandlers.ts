@@ -20,7 +20,6 @@ import {
 	unlockIssue
 } from '../github/githubActions';
 import { logger } from '../logger';
-import { store } from '../store';
 
 export const threadsCreateTaskMap: Map<
 	string,
@@ -29,37 +28,6 @@ export const threadsCreateTaskMap: Map<
 
 export async function handleClientReady(client: Client) {
 	logger.info(`Logged in as ${client.user?.tag}!`);
-
-	// // Fetch cache for closed threads
-	// const threadPromises = store.threads.map(async (thread) => {
-	//   const cachedChannel = client.channels.cache.get(thread.id) as
-	//     | ThreadChannel
-	//     | undefined;
-	//   if (cachedChannel) {
-	//     cachedChannel.messages.cache.forEach((message) => message.id);
-	//     return thread; // Returning thread as valid
-	//   } else {
-	//     try {
-	//       const channel = (await client.channels.fetch(
-	//         thread.id,
-	//       )) as ThreadChannel;
-	//       channel.messages.cache.forEach((message) => message.id);
-	//       return thread; // Returning thread as valid
-	//     } catch (error) {
-	//       return; // Marking thread as invalid
-	//     }
-	//   }
-	// });
-	// const threadPromisesResults = await Promise.all(threadPromises);
-	// store.threads = threadPromisesResults.filter(
-	//   (thread) => thread !== undefined,
-	// ) as Thread[];
-
-	// logger.info(`Issues loaded : ${store.threads.length}`);
-
-	// client.channels.fetch(config.DISCORD_CHANNEL_ID).then((params) => {
-	//   store.availableTags = (params as ForumChannel).availableTags;
-	// });
 }
 
 export async function handleThreadCreate(params: AnyThreadChannel) {
@@ -74,7 +42,7 @@ export async function handleChannelUpdate(params: DMChannel | NonThreadGuildBase
 	if (id !== config.DISCORD_CHANNEL_ID) return;
 
 	if (type === 15) {
-		store.availableTags = params.availableTags;
+		// params.availableTags;
 	}
 }
 

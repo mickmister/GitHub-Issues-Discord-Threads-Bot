@@ -1,38 +1,42 @@
+import type { components } from '@octokit/openapi-webhooks-types';
 import { Request } from 'express';
+import { getRecord } from '../db';
 import {
-	archiveThread,
+	closeThread,
 	createComment,
 	createThread,
+	deleteComment,
 	deleteThread,
 	lockThread,
-	unarchiveThread,
+	reopenThread,
 	unlockThread
 } from '../discord/discordActions';
-import { GitHubLabel } from '../interfaces';
-import { store } from '../store';
 import { getDiscordInfoFromGithubBody } from './githubActions';
 
-async function getIssueNodeId(req: Request): Promise<string | undefined> {
-	return req.body.issue.node_id;
-}
-
-export async function handleOpened(req: Request) {
+export async function handleOpened(
+	req: Request<any, any, components['schemas']['webhook-issues-opened']>
+) {
 	if (!req.body.issue) return;
-	const { node_id, number, title, user, body, labels } = req.body.issue;
-	if (store.threads.some((thread) => thread.node_id === node_id)) return;
+	const { id: github_id, number: issue_number, title, user, body, labels } = req.body.issue;
+	if (!user || !body) return;
 
-	const { login } = user;
-	const appliedTags = (<GitHubLabel[]>labels)
-		.map((label) => store.availableTags.find((tag) => tag.name === label.name)?.id || '')
-		.filter((i) => i);
+	const { login, avatar_url } = user;
+	if (!avatar_url) return;
 
-	createThread({ login, appliedTags, number, title, body, node_id });
+	const exist = await getRecord({ github_id });
+	if (exist) return;
+
+	createThread({ login, appliedTags: [], issue_number, title, body, github_id, avatar_url });
 }
 
-export async function handleCreated(req: Request) {
-	const { user, id, body } = req.body.comment;
+export async function handleCreated(
+	req: Request<any, any, components['schemas']['webhook-issue-comment-created']>
+) {
+	const { user, id: github_id, body } = req.body.comment;
+	if (!user) return;
 	const { login, avatar_url } = user;
-	const { node_id } = req.body.issue;
+	if (!avatar_url) return;
+	const { id: issue_id, number: issue_number } = req.body.issue;
 
 	// Check if the comment already contains Discord info
 	if (getDiscordInfoFromGithubBody(body).channelId) {
@@ -41,35 +45,66 @@ export async function handleCreated(req: Request) {
 	}
 
 	createComment({
-		git_id: id,
 		body,
 		login,
 		avatar_url,
-		node_id
+		github_id,
+		issue_number,
+		issue_id
 	});
 }
 
-export async function handleClosed(req: Request) {
-	const node_id = await getIssueNodeId(req);
-	archiveThread(node_id);
+export async function handleClosed(
+	req: Request<any, any, components['schemas']['webhook-issues-closed']>
+) {
+	const { id: github_id } = req.body.issue;
+	const { discord_id } = (await getRecord({ github_id })) || {};
+	if (discord_id) closeThread(discord_id);
 }
 
-export async function handleReopened(req: Request) {
-	const node_id = await getIssueNodeId(req);
-	unarchiveThread(node_id);
+export async function handleReopened(
+	req: Request<any, any, components['schemas']['webhook-issues-reopened']>
+) {
+	const { id: github_id } = req.body.issue;
+	const { discord_id } = (await getRecord({ github_id })) || {};
+	if (discord_id) reopenThread(discord_id);
 }
 
-export async function handleLocked(req: Request) {
-	const node_id = await getIssueNodeId(req);
-	lockThread(node_id);
+export async function handleLocked(
+	req: Request<any, any, components['schemas']['webhook-issues-locked']>
+) {
+	const { id: github_id } = req.body.issue;
+	const { discord_id } = (await getRecord({ github_id })) || {};
+	if (discord_id) lockThread(discord_id);
 }
 
-export async function handleUnlocked(req: Request) {
-	const node_id = await getIssueNodeId(req);
-	unlockThread(node_id);
+export async function handleUnlocked(
+	req: Request<any, any, components['schemas']['webhook-issues-unlocked']>
+) {
+	const { id: github_id } = req.body.issue;
+	const { discord_id } = (await getRecord({ github_id })) || {};
+	if (discord_id) unlockThread(discord_id);
 }
 
-export async function handleDeleted(req: Request) {
-	const node_id = await getIssueNodeId(req);
-	deleteThread(node_id);
+export async function handleDeleted(
+	req: Request<any, any, components['schemas']['webhook-issues-deleted']>
+) {
+	const { id: github_id } = req.body.issue;
+	const { discord_id } = (await getRecord({ github_id })) || {};
+	if (discord_id) deleteThread(discord_id);
 }
+
+export async function handleCommentDeleted(
+	req: Request<any, any, components['schemas']['webhook-issue-comment-deleted']>
+) {
+	const issueId = req.body.issue.id;
+	const commentId = req.body.comment.id;
+	const { discord_id: threadId } = (await getRecord({ github_id: issueId })) || {};
+	const { discord_id: messageId } = (await getRecord({ github_id: commentId })) || {};
+	if (threadId && messageId) deleteComment(threadId, messageId);
+}
+
+// 'webhook-issues-edited';
+// 'webhook-issues-labeled';
+// 'webhook-issues-unlabeled';
+// 'webhook-issue-comment-edited';

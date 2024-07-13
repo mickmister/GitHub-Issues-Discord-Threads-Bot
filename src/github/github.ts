@@ -1,7 +1,7 @@
-import express from 'express';
-import { GithubHandlerFunction } from '../interfaces';
+import express, { type Request } from 'express';
 import {
 	handleClosed,
+	handleCommentDeleted,
 	handleCreated,
 	handleDeleted,
 	handleLocked,
@@ -19,7 +19,7 @@ export function initGithub() {
 	});
 
 	const githubActions: {
-		[key: string]: GithubHandlerFunction;
+		[key: string]: (req: Request) => void;
 	} = {
 		opened: (req) => handleOpened(req),
 		created: (req) => handleCreated(req),
@@ -27,7 +27,7 @@ export function initGithub() {
 		reopened: (req) => handleReopened(req),
 		locked: (req) => handleLocked(req),
 		unlocked: (req) => handleUnlocked(req),
-		deleted: (req) => handleDeleted(req)
+		deleted: (req) => (req.body.comment ? handleCommentDeleted(req) : handleDeleted(req))
 	};
 
 	app.post('/', async (req, res) => {
