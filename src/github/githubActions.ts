@@ -1,16 +1,16 @@
-import type { graphql } from '@octokit/graphql/dist-types/types';
-import type { Octokit, RestEndpointMethodTypes } from '@octokit/rest';
+import { graphql } from '@octokit/graphql';
+import type { graphql as graphqltype } from '@octokit/graphql/dist-types/types';
+import { Octokit, type RestEndpointMethodTypes } from '@octokit/rest';
 import { Attachment, Collection, Message } from 'discord.js';
 import { config } from '../config';
 import { insertRecord, removeRecord, removeRecorsByIssueNumber } from '../db';
 import { ActionValue, Actions, Triggerer, logger } from '../logger';
 
 let cachedOctokit: Octokit | null = null;
-let cachedGraphql: graphql | null = null;
+let cachedGraphql: graphqltype | null = null;
 
 async function getOctokit() {
 	if (!cachedOctokit) {
-		const { Octokit } = await import('@octokit/rest');
 		cachedOctokit = new Octokit({
 			auth: config.GITHUB_ACCESS_TOKEN,
 			baseUrl: 'https://api.github.com'
@@ -21,8 +21,7 @@ async function getOctokit() {
 
 async function getGraphql() {
 	if (!cachedGraphql) {
-		const module = await import('@octokit/graphql');
-		cachedGraphql = module.graphql.defaults({
+		cachedGraphql = graphql.defaults({
 			headers: {
 				authorization: `token ${process.env.GITHUB_ACCESS_TOKEN}`
 			}

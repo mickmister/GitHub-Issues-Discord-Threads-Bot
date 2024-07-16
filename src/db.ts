@@ -12,7 +12,7 @@ const WHERE = 'WHERE';
 const DELETE_FROM = 'DELETE FROM';
 const INSERT_INTO = 'INSERT INTO';
 
-type Simplify<T> = { [KeyType in keyof T]: T[KeyType] } & {};
+type Simplify<T> = { [KeyType in keyof T]: T[KeyType] } & unknown;
 type GithubFieldType = {
 	readonly [GITHUB_ID_FIELD]: number;
 };
