@@ -9,7 +9,8 @@ import {
 	deleteThread,
 	lockThread,
 	reopenThread,
-	unlockThread
+	unlockThread,
+	updateThreadTags
 } from '../discord/discordActions';
 import { closeTaskStore, lockTaskStore } from '../store';
 import { getDiscordInfoFromGithubBody } from './githubActions';
@@ -121,7 +122,16 @@ export async function handleCommentDeleted(req: GithubRequest<'webhook-issue-com
 	deleteComment(threadId, messageId);
 }
 
+export async function handeLabelUpdated(
+	req: GithubRequest<'webhook-issues-labeled' | 'webhook-issues-unlabeled'>
+) {
+	const { id: github_id, labels } = req.body.issue;
+	const { discord_id } = (await getRecord({ github_id })) || {};
+	if (!discord_id) return;
+
+	const tags = labels?.map(({ name }) => name) || [];
+	// updateThreadTags(discord_id, tags);		// TODO - fix discord->github->discord loop
+}
+
 // 'webhook-issues-edited';
-// 'webhook-issues-labeled';
-// 'webhook-issues-unlabeled';
 // 'webhook-issue-comment-edited';

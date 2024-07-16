@@ -17,7 +17,8 @@ import {
 	getIssue,
 	lockIssue,
 	openIssue,
-	unlockIssue
+	unlockIssue,
+	updateLabels
 } from '../github/githubActions';
 import { logger } from '../logger';
 import { closeTaskStore, lockTaskStore, threadsCreateTaskStore } from '../store';
@@ -34,7 +35,6 @@ export async function handleThreadCreate(params: AnyThreadChannel) {
 	if (parentId !== DISCORD_CHANNEL_ID) return;
 
 	const tags = await getTagNames(appliedTags);
-	console.log(tags);
 	threadsCreateTaskStore.set(id, { id, name, tags });
 }
 
@@ -48,10 +48,16 @@ export async function handleChannelUpdate(params: DMChannel | NonThreadGuildBase
 }
 
 export async function handleThreadUpdate(params: AnyThreadChannel) {
-	const { id: discord_id, parentId, archived: wasArchived, locked: wasLocked } = params;
+	const {
+		id: discord_id,
+		parentId,
+		archived: wasArchived,
+		locked: wasLocked,
+		appliedTags: wasWithTags
+	} = params;
 	if (parentId !== DISCORD_CHANNEL_ID) return;
 
-	const { archived, locked } = params.members.thread;
+	const { archived, locked, appliedTags } = params.members.thread;
 	const { issue_number } = (await getRecord({ discord_id })) || {};
 	if (!issue_number) return;
 
@@ -63,6 +69,11 @@ export async function handleThreadUpdate(params: AnyThreadChannel) {
 	if (locked !== wasLocked && locked !== lockTaskStore.get(discord_id)) {
 		locked ? lockIssue(issue_number) : unlockIssue(issue_number);
 		lockTaskStore.delete(discord_id);
+	}
+
+	if (wasWithTags.length !== appliedTags.length) {
+		const labels = await getTagNames(appliedTags);
+		updateLabels(issue_number, labels);
 	}
 }
 

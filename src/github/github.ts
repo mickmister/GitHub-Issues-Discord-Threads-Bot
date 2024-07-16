@@ -1,5 +1,6 @@
 import express, { type Request } from 'express';
 import {
+	handeLabelUpdated,
 	handleClosed,
 	handleCommentDeleted,
 	handleCreated,
@@ -13,22 +14,24 @@ import {
 const app = express();
 app.use(express.json());
 
+const githubActions: {
+	[key: string]: (req: Request) => void;
+} = {
+	opened: (req) => handleOpened(req),
+	created: (req) => handleCreated(req),
+	closed: (req) => handleClosed(req),
+	reopened: (req) => handleReopened(req),
+	locked: (req) => handleLocked(req),
+	unlocked: (req) => handleUnlocked(req),
+	labeled: (req) => handeLabelUpdated(req),
+	unlabeled: (req) => handeLabelUpdated(req),
+	deleted: (req) => (req.body.comment ? handleCommentDeleted(req) : handleDeleted(req))
+};
+
 export function initGithub() {
 	app.get('', (_, res) => {
 		res.json({ msg: 'github webhooks work' });
 	});
-
-	const githubActions: {
-		[key: string]: (req: Request) => void;
-	} = {
-		opened: (req) => handleOpened(req),
-		created: (req) => handleCreated(req),
-		closed: (req) => handleClosed(req),
-		reopened: (req) => handleReopened(req),
-		locked: (req) => handleLocked(req),
-		unlocked: (req) => handleUnlocked(req),
-		deleted: (req) => (req.body.comment ? handleCommentDeleted(req) : handleDeleted(req))
-	};
 
 	app.post('/', async (req, res) => {
 		const githubAction = githubActions[req.body.action];

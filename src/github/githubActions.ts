@@ -184,6 +184,25 @@ export async function lockIssue(issue_number: number) {
 	}
 }
 
+export async function updateLabels(issue_number: number, labels: string[]) {
+	try {
+		const octokit = await getOctokit();
+		const response = await octokit.rest.issues.setLabels({
+			...repoCredentials,
+			issue_number,
+			labels
+		});
+
+		if (!response) {
+			throw new Error('No response');
+		}
+
+		info(Actions.UpdatedTags, issue_number);
+	} catch (err) {
+		error(Actions.UpdatedTags, err);
+	}
+}
+
 export async function unlockIssue(issue_number: number) {
 	try {
 		const octokit = await getOctokit();

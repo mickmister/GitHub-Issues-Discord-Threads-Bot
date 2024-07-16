@@ -234,3 +234,17 @@ async function addTags(tags: string[], channel?: ForumChannel): Promise<void> {
 	currentTags.push(...newTags);
 	await channel.setAvailableTags(currentTags);
 }
+
+export async function updateThreadTags(threadId: string, newTags: string[]): Promise<void> {
+	try {
+		const channel = await getThreadChannel(threadId);
+		if (!channel) return;
+
+		const tagIds = await getTagIds(newTags);
+		channel.setAppliedTags(tagIds);
+
+		info(Actions.UpdatedTags, channel, threadId);
+	} catch (err) {
+		console.error(`Error updating tags for thread ${threadId}:`, err);
+	}
+}

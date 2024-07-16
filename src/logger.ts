@@ -32,7 +32,8 @@ export const Actions = {
 	Locked: 'locked',
 	Unlocked: 'unlocked',
 	Deleted: 'deleted',
-	DeletedComment: 'deleted comment'
+	DeletedComment: 'deleted comment',
+	UpdatedTags: 'updated tags'
 } as const;
 
 export type ActionValue = (typeof Actions)[keyof typeof Actions];
