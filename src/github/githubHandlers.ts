@@ -25,13 +25,23 @@ export async function handleOpened(req: GithubRequest<'webhook-issues-opened'>) 
 	const { id: github_id, number: issue_number, title, user, body, labels } = req.body.issue;
 	if (!user || !body) return;
 
+	const appliedTags = labels?.map((label) => label.name) || [];
+
 	const { login, avatar_url } = user;
 	if (!avatar_url) return;
 
 	const exist = await getRecord({ github_id });
 	if (exist) return;
 
-	createThread({ login, appliedTags: [], issue_number, title, body, github_id, avatar_url });
+	createThread({
+		login,
+		issue_number,
+		title,
+		body,
+		github_id,
+		avatar_url,
+		appliedTags
+	});
 }
 
 export async function handleCreated(req: GithubRequest<'webhook-issue-comment-created'>) {

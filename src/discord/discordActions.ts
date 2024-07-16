@@ -1,8 +1,16 @@
-import { ForumChannel, MessagePayload, ThreadChannel } from 'discord.js';
+import {
+	ForumChannel,
+	GuildForumTagData,
+	MessagePayload,
+	Snowflake,
+	ThreadChannel
+} from 'discord.js';
 import { config } from '../config';
 import { getRecord, insertRecord, removeRecord } from '../db';
 import { ActionValue, Actions, Triggerer, logger } from '../logger';
 import client from './discord';
+
+const { DISCORD_CHANNEL_ID } = config;
 
 const info = (
 	action: ActionValue,
@@ -13,6 +21,42 @@ const info = (
 	logger.info(
 		`${Triggerer.Github} | ${action} | ${`https://discord.com/channels/${channel.guildId}/${threadId}${messageId ? `/${messageId}` : ''}`}`
 	);
+
+async function getForumChannel(): Promise<ForumChannel> {
+	const channel =
+		client.channels.cache.get(DISCORD_CHANNEL_ID) ||
+		(await client.channels.fetch(DISCORD_CHANNEL_ID));
+
+	if (channel instanceof ForumChannel) {
+		return channel;
+	}
+
+	throw new Error(`Channel with ID ${config.DISCORD_CHANNEL_ID} not found.`);
+}
+
+async function getTagIds(tags: string[], channel?: ForumChannel): Promise<Snowflake[]> {
+	if (!channel) channel = await getForumChannel();
+
+	await addTags(tags, channel);
+
+	const tagsSet = new Set(tags);
+	return channel.availableTags.filter(({ name }) => tagsSet.has(name)).map(({ id }) => id);
+}
+
+async function addTags(tags: string[], channel?: ForumChannel): Promise<void> {
+	if (!channel) channel = await getForumChannel();
+
+	const currentTags = channel.availableTags as unknown as GuildForumTagData[];
+	const currentTagsSet = new Set(currentTags.map((tag) => tag.name));
+
+	const appliedTagsData = tags.map((name) => ({ name }));
+
+	const newTags = appliedTagsData.filter(({ name }) => !currentTagsSet.has(name));
+	if (newTags.length === 0) return;
+
+	currentTags.push(...newTags);
+	await channel.setAvailableTags(currentTags);
+}
 
 export async function createThread({
 	body,
@@ -32,11 +76,15 @@ export async function createThread({
 	issue_number: number;
 }) {
 	try {
-		const channel = client.channels.cache.get(config.DISCORD_CHANNEL_ID) as ForumChannel;
+		const channel = await getForumChannel();
+
+		const tagIds = await getTagIds(appliedTags, channel);
+
 		const webhook = await channel.createWebhook({ name: login, avatar: avatar_url });
 		const messagePayload = MessagePayload.create(webhook, {
 			content: body,
-			threadName: title
+			threadName: title,
+			appliedTags: tagIds
 		}).resolveBody();
 		const { id: discord_id } = await webhook.send(messagePayload);
 		webhook.delete('Cleanup');
@@ -47,6 +95,16 @@ export async function createThread({
 	} catch (err) {
 		console.log(err);
 	}
+}
+
+async function getThreadChannel(threadId: string): Promise<ThreadChannel | undefined> {
+	const channel = client.channels.cache.get(threadId) || (await client.channels.fetch(threadId));
+
+	if (channel instanceof ThreadChannel) {
+		return channel;
+	}
+
+	return undefined;
 }
 
 export async function createComment({
@@ -143,16 +201,6 @@ export async function deleteThread(threadId: string) {
 	removeRecord({ discord_id: threadId });
 
 	info(Actions.Deleted, channel, threadId);
-}
-
-export async function getThreadChannel(threadId: string): Promise<ThreadChannel | undefined> {
-	const channel = client.channels.cache.get(threadId) || (await client.channels.fetch(threadId));
-
-	if (channel instanceof ThreadChannel) {
-		return channel;
-	}
-
-	return undefined;
 }
 
 export async function deleteComment(threadId: string, messageId: string) {
