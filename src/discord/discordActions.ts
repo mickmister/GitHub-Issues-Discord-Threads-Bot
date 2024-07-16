@@ -1,5 +1,6 @@
 import {
 	ForumChannel,
+	GuildForumTag,
 	GuildForumTagData,
 	MessagePayload,
 	Snowflake,
@@ -34,13 +35,32 @@ async function getForumChannel(): Promise<ForumChannel> {
 	throw new Error(`Channel with ID ${config.DISCORD_CHANNEL_ID} not found.`);
 }
 
-async function getTagIds(tags: string[], channel?: ForumChannel): Promise<Snowflake[]> {
+export async function getTagIds(tags: string[], channel?: ForumChannel): Promise<Snowflake[]> {
 	if (!channel) channel = await getForumChannel();
 
 	await addTags(tags, channel);
+	return filterAndExtractTagsAttributes(channel, 'name', tags, 'id');
+}
 
-	const tagsSet = new Set(tags);
-	return channel.availableTags.filter(({ name }) => tagsSet.has(name)).map(({ id }) => id);
+export async function getTagNames(tagIds: Snowflake[], channel?: ForumChannel): Promise<string[]> {
+	if (!channel) channel = await getForumChannel();
+
+	return filterAndExtractTagsAttributes(channel, 'id', tagIds, 'name');
+}
+
+function filterAndExtractTagsAttributes<
+	K extends keyof GuildForumTag,
+	N extends keyof GuildForumTag
+>(
+	channel: ForumChannel,
+	param: K,
+	filterValues: GuildForumTag[K][],
+	extractAttr: N
+): GuildForumTag[N][] {
+	const filterSet = new Set(filterValues);
+	return channel.availableTags
+		.filter((tag) => filterSet.has(tag[param]))
+		.map((tag) => tag[extractAttr]);
 }
 
 async function addTags(tags: string[], channel?: ForumChannel): Promise<void> {

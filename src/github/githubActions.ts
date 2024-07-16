@@ -5,6 +5,7 @@ import { Attachment, Collection, Message } from 'discord.js';
 import { config } from '../config';
 import { insertRecord, removeRecord, removeRecorsByIssueNumber } from '../db';
 import { ActionValue, Actions, Triggerer, logger } from '../logger';
+import { ThreadCreateTask } from '../store';
 
 let cachedOctokit: Octokit | null = null;
 let cachedGraphql: graphqltype | null = null;
@@ -92,18 +93,15 @@ export async function getIssue(issue_number: number) {
 	return response.data;
 }
 
-export async function createIssue(
-	thread: { id: string; name: string; appliedTags: string[] },
-	params: Message
-) {
+export async function createIssue(thread: ThreadCreateTask, params: Message) {
 	try {
 		const octokit = await getOctokit();
-		const { name: title, appliedTags, id: discord_id } = thread;
+		const { name: title, tags: labels, id: discord_id } = thread;
 
 		const body = getIssueBody(params);
 		const response = await octokit.rest.issues.create({
 			...repoCredentials,
-			labels: appliedTags,
+			labels,
 			title,
 			body
 		});

@@ -14,7 +14,6 @@ export const closeTaskStore: Map<string, boolean> = new Map([]);
  * Temporarily holds the details of newly created thread info
  * for further use in the handleMessageCreate function.
  */
-export const threadsCreateTaskStore: Map<
-	string,
-	{ id: string; name: string; appliedTags: string[] }
-> = new Map([]);
+export const threadsCreateTaskStore: Map<string, ThreadCreateTask> = new Map([]);
+
+export type ThreadCreateTask = { id: string; name: string; tags: string[] };

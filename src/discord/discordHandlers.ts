@@ -21,6 +21,9 @@ import {
 } from '../github/githubActions';
 import { logger } from '../logger';
 import { closeTaskStore, lockTaskStore, threadsCreateTaskStore } from '../store';
+import { getTagNames } from './discordActions';
+
+const { DISCORD_CHANNEL_ID } = config;
 
 export async function handleClientReady(client: Client) {
 	logger.info(`Logged in as ${client.user?.tag}!`);
@@ -28,14 +31,16 @@ export async function handleClientReady(client: Client) {
 
 export async function handleThreadCreate(params: AnyThreadChannel) {
 	const { id, name, appliedTags, parentId } = params;
-	if (parentId !== config.DISCORD_CHANNEL_ID) return;
+	if (parentId !== DISCORD_CHANNEL_ID) return;
 
-	threadsCreateTaskStore.set(id, { id, name, appliedTags });
+	const tags = await getTagNames(appliedTags);
+	console.log(tags);
+	threadsCreateTaskStore.set(id, { id, name, tags });
 }
 
 export async function handleChannelUpdate(params: DMChannel | NonThreadGuildBasedChannel) {
 	const { id, type } = params;
-	if (id !== config.DISCORD_CHANNEL_ID) return;
+	if (id !== DISCORD_CHANNEL_ID) return;
 
 	if (type === 15) {
 		// params.availableTags;
@@ -44,7 +49,7 @@ export async function handleChannelUpdate(params: DMChannel | NonThreadGuildBase
 
 export async function handleThreadUpdate(params: AnyThreadChannel) {
 	const { id: discord_id, parentId, archived: wasArchived, locked: wasLocked } = params;
-	if (parentId !== config.DISCORD_CHANNEL_ID) return;
+	if (parentId !== DISCORD_CHANNEL_ID) return;
 
 	const { archived, locked } = params.members.thread;
 	const { issue_number } = (await getRecord({ discord_id })) || {};
@@ -93,7 +98,7 @@ export async function handleMessageDelete(params: Message | PartialMessage) {
 }
 
 export async function handleThreadDelete(params: AnyThreadChannel) {
-	if (params.parentId !== config.DISCORD_CHANNEL_ID) return;
+	if (params.parentId !== DISCORD_CHANNEL_ID) return;
 
 	const { issue_number } = (await getRecord({ discord_id: params.id })) || {};
 	if (!issue_number) return;
