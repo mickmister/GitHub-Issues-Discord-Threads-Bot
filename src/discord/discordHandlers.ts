@@ -123,17 +123,23 @@ export async function handleMessageCreate(params: Message) {
 
   const thread = store.threads.find((thread) => thread.id === channelId);
 
-  if (!thread) {
-    console.log('No thread found');
-    console.log(params);
+  if (!params.content.startsWith(`<@${process.env.DISCORD_BOT_USER_ID}>`)) {
     return;
   }
 
-  if (!thread.body) {
-    createIssue(thread, params);
-  } else {
-    createIssueComment(thread, params);
-  }
+  createIssue(thread, params);
+
+  // if (!thread) {
+  //   console.log('No thread found');
+  //   console.log(JSON.stringify(params));
+  //   return;
+  // }
+
+  // if (!thread.body) {
+  //   createIssue(thread, params);
+  // } else {
+  //   createIssueComment(thread, params);
+  // }
 }
 
 export async function handleMessageDelete(params: Message | PartialMessage) {

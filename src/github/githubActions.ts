@@ -179,32 +179,37 @@ export async function unlockIssue(thread: Thread) {
   }
 }
 
-export async function createIssue(thread: Thread, params: Message) {
-  const { title, appliedTags, number } = thread;
+export async function createIssue(thread: Thread | undefined, params: Message) {
+  // const title
+  // appliedTags, number } = {};
 
-  if (number) {
-    error("Thread already has an issue number", thread);
-    return;
-  }
+  // if (number) {
+  //   error("Thread already has an issue number", thread);
+  //   return;
+  // }
 
   try {
-    const labels = appliedTags?.map(
-      (id) => store.availableTags.find((item) => item.id === id)?.name || "",
-    );
+    // const labels = appliedTags?.map(
+    //   (id) => store.availableTags.find((item) => item.id === id)?.name || "",
+    // );
+
+    const toMatch = `<@${process.env.DISCORD_BOT_USER_ID!}>`;
+
+    const title = params.content.replace(toMatch, '').slice(0, 100);
 
     const body = getIssueBody(params);
     const response = await octokit.rest.issues.create({
       ...repoCredentials,
-      labels,
+      labels: [],
       title,
       body,
     });
 
     if (response && response.data) {
-      thread.node_id = response.data.node_id;
-      thread.body = response.data.body!;
-      thread.number = response.data.number;
-      info(Actions.Created, thread);
+      // thread.node_id = response.data.node_id;
+      // thread.body = response.data.body!;
+      // thread.number = response.data.number;
+      // info(Actions.Created, thread);
     } else {
       error("Failed to create issue - No response data", thread);
     }
