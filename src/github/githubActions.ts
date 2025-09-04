@@ -206,6 +206,9 @@ export async function createIssue(thread: Thread | undefined, params: Message) {
     });
 
     if (response && response.data) {
+      const issueUrl = response.data.html_url;
+      await params.reply(`Created an issue: ${issueUrl}`);
+      
       // thread.node_id = response.data.node_id;
       // thread.body = response.data.body!;
       // thread.number = response.data.number;
