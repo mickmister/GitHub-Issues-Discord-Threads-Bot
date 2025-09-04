@@ -123,7 +123,11 @@ export async function handleMessageCreate(params: Message) {
 
   const thread = store.threads.find((thread) => thread.id === channelId);
 
-  if (!thread) return;
+  if (!thread) {
+    console.log('No thread found');
+    console.log(params);
+    return;
+  }
 
   if (!thread.body) {
     createIssue(thread, params);
