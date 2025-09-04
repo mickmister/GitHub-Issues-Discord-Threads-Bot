@@ -53,11 +53,23 @@ function getIssueBody(params: Message) {
   const { guildId, channelId, id, content, author, attachments } = params;
   const { globalName, avatar } = author;
 
-  return (
-    `<kbd>[![${globalName}](https://cdn.discordapp.com/avatars/${author.id}/${avatar}.webp?size=40)](https://discord.com/channels/${guildId}/${channelId}/${id})</kbd> [${globalName}](https://discord.com/channels/${guildId}/${channelId}/${id})  \`BOT\`\n\n` +
-    `${content}\n` +
-    `${attachmentsToMarkdown(attachments)}\n`
-  );
+  const contentCleaned = content.replace(/<@!?(\d+)>/g, '').trim();
+
+  const message = `Posted by **${globalName}** [here](https://discord.com/channels/${guildId}/${channelId}/${id})
+  
+${contentCleaned}
+
+${attachmentsToMarkdown(
+    attachments,
+  )}`;
+
+  return message;
+
+  // return (
+  //   `<kbd>[![${globalName}](https://cdn.discordapp.com/avatars/${author.id}/${avatar}.webp?size=40)](https://discord.com/channels/${guildId}/${channelId}/${id})</kbd> [${globalName}](https://discord.com/channels/${guildId}/${channelId}/${id})  \`BOT\`\n\n` +
+  //   `${content}\n` +
+  //   `${attachmentsToMarkdown(attachments)}\n`
+  // );
 }
 
 const regexForDiscordCredentials =
@@ -198,6 +210,7 @@ export async function createIssue(thread: Thread | undefined, params: Message) {
     const title = params.content.replace(toMatch, '').slice(0, 100);
 
     const body = getIssueBody(params);
+
     const response = await octokit.rest.issues.create({
       ...repoCredentials,
       labels: [],
