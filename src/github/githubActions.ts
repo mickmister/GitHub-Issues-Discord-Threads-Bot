@@ -207,7 +207,7 @@ export async function createIssue(thread: Thread | undefined, params: Message) {
 
     const toMatch = `<@${process.env.DISCORD_BOT_USER_ID!}>`;
 
-    const title = params.content.replace(toMatch, '').slice(0, 100);
+    const title = params.content.split('\n')[0]!.replace(toMatch, '').slice(0, 100);
 
     const body = getIssueBody(params);
 
